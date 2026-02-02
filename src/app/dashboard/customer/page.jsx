@@ -258,7 +258,7 @@ export default function CustomerDashboard() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold uppercase text-slate-400">
-                  Berat (Kg)
+                  Berat (Cbm)
                 </label>
                 <input
                   type="number"

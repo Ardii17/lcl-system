@@ -97,18 +97,11 @@ export default function LandingPage() {
             </a>
           </div>
 
-          <div className="flex gap-4">
             <Link href="/login">
               <button className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700 px-6 py-2 rounded-full text-sm font-bold transition-all">
                 Masuk
               </button>
             </Link>
-            <Link href="/register">
-              <button className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700 px-6 py-2 rounded-full text-sm font-bold transition-all">
-                Daftar
-              </button>
-            </Link>
-          </div>
         </div>
       </nav>
 
