@@ -251,7 +251,7 @@ export default function CustomerDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="number"
-                  placeholder="Berat (Kg)"
+                  placeholder="Berat (Cbm)"
                   value={form.berat}
                   onChange={(e) => setForm({ ...form, berat: e.target.value })}
                   className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-800"
@@ -376,7 +376,7 @@ export default function CustomerDashboard() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Barang</span><span className="font-bold">{selectedItem.barang}</span></div>
                 <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Tujuan</span><span className="font-bold">{selectedItem.negaraTujuan || selectedItem.tujuan}</span></div>
-                <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Berat</span><span className="font-bold">{selectedItem.berat} Kg</span></div>
+                <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Berat</span><span className="font-bold">{selectedItem.berat} Cbm</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Status</span><span className="font-bold text-[#1e3a68]">{selectedItem.status}</span></div>
               </div>
             </div>

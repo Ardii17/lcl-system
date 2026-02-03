@@ -228,7 +228,7 @@ export default function AdminDashboard() {
                   <tr>
                     <th className="px-4 py-3">No Booking</th>
                     <th className="px-4 py-3">Barang / Customer</th>
-                    <th className="px-4 py-3 text-center">Berat (Kg)</th>
+                    <th className="px-4 py-3 text-center">Berat (Cbm)</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-center">Aksi</th>
                   </tr>
