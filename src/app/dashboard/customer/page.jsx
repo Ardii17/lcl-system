@@ -5,15 +5,12 @@ import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
   LogOut,
-  Package,
-  MapPin,
-  Search,
+  Bell,
   X,
   Clock,
   CheckCircle2,
   Ship,
-  Bell,
-  User,
+  Search,
 } from "lucide-react";
 
 export default function CustomerDashboard() {
@@ -25,7 +22,7 @@ export default function CustomerDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showNotif, setShowNotif] = useState(false);
-  const [notifications, setNotifications] = useState([]); // Data Real Notifikasi
+  const [notifications, setNotifications] = useState([]);
 
   const [form, setForm] = useState({
     namaBarang: "",
@@ -34,6 +31,8 @@ export default function CustomerDashboard() {
     tanggal: "",
     pembayaran: "",
   });
+
+  // --- LOGIKA (TIDAK BERUBAH) ---
 
   // 1. FETCH DATA BOOKING
   const fetchBookings = async () => {
@@ -59,7 +58,7 @@ export default function CustomerDashboard() {
       const { data } = await supabase
         .from("notifications")
         .select("*")
-        .eq("user_id", user.id) // Ambil notifikasi milik user ini
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       if (data) setNotifications(data);
     }
@@ -70,7 +69,7 @@ export default function CustomerDashboard() {
     fetchNotifications();
   }, []);
 
-  // 3. FUNGSI INPUT DATA (AUTO NOTIF KE ADMIN)
+  // 3. FUNGSI INPUT DATA
   const handleInputData = async (e) => {
     e.preventDefault();
     if (!form.namaBarang || !form.negaraTujuan)
@@ -81,7 +80,6 @@ export default function CustomerDashboard() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // A. Simpan Booking
     const { error: bookingError } = await supabase.from("bookings").insert([
       {
         barang: form.namaBarang,
@@ -95,11 +93,11 @@ export default function CustomerDashboard() {
     ]);
 
     if (!bookingError) {
-      // B. Kirim Notifikasi ke Admin (user_id: null artinya untuk admin)
+      // Kirim Notifikasi ke Admin
       await supabase.from("notifications").insert([
         {
           message: `Booking Baru: ${form.namaBarang} tujuan ${form.negaraTujuan} perlu verifikasi.`,
-          user_id: null, // NULL = ADMIN
+          user_id: null,
           is_read: false,
         },
       ]);
@@ -127,7 +125,7 @@ export default function CustomerDashboard() {
         .from("notifications")
         .update({ is_read: true })
         .in("id", unreadIds);
-      fetchNotifications(); // Refresh tampilan
+      fetchNotifications();
     }
   };
 
@@ -135,75 +133,53 @@ export default function CustomerDashboard() {
     await supabase.auth.signOut();
     router.push("/login");
   };
+
   const openModal = (item) => {
     setSelectedItem(item);
     setIsModalOpen(true);
   };
 
-  // Hitung jumlah belum dibaca
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
+  // --- TAMPILAN BARU (SESUAI GAMBAR) ---
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      {/* NAVBAR */}
-      <header className="bg-white px-8 py-4 flex justify-between items-center shadow-sm border-b border-slate-200 sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-lg text-white">
-            <Ship size={20} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-none">
-              LCL System
-            </h1>
-            <span className="text-xs text-slate-500 font-medium">
-              Customer Panel
-            </span>
-          </div>
+      
+      {/* HEADER BIRU TUA */}
+      <header className="bg-[#1e3a68] text-white px-8 py-4 flex justify-between items-center shadow-md">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold tracking-wide">
+            Sistem Pengiriman Ekspor LCL
+          </h1>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* NOTIFIKASI REAL-TIME */}
-          <div className="relative">
+        <div className="flex items-center gap-3">
+          {/* Fitur Notifikasi (Tetap Ada tapi disesuaikan stylenya) */}
+          <div className="relative mx-2">
             <button
               onClick={() => {
                 setShowNotif(!showNotif);
                 if (!showNotif) markAsRead();
               }}
-              className="p-2 rounded-full hover:bg-slate-100 relative text-slate-600 transition-colors"
+              className="relative p-1 hover:text-blue-200 transition"
             >
               <Bell size={20} />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#1e3a68]"></span>
               )}
             </button>
-
+            
             {showNotif && (
-              <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
-                  <h3 className="font-bold text-sm">Notifikasi</h3>
-                  <span className="text-xs text-slate-400">
-                    {unreadCount} baru
-                  </span>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
+              <div className="absolute right-0 mt-3 w-80 bg-white text-slate-800 rounded-lg shadow-xl border border-slate-100 overflow-hidden z-50">
+                <div className="p-3 border-b border-slate-100 bg-slate-50 font-bold text-sm">Notifikasi</div>
+                <div className="max-h-60 overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <p className="p-4 text-xs text-center text-slate-400">
-                      Tidak ada notifikasi.
-                    </p>
+                    <p className="p-4 text-xs text-center text-slate-400">Tidak ada notifikasi.</p>
                   ) : (
                     notifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        className={`p-4 border-b border-slate-50 hover:bg-blue-50/30 ${!notif.is_read ? "bg-blue-50/20" : ""}`}
-                      >
-                        <p
-                          className={`text-sm ${!notif.is_read ? "font-semibold text-slate-800" : "text-slate-600"}`}
-                        >
-                          {notif.message}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          {new Date(notif.created_at).toLocaleString()}
-                        </p>
+                      <div key={notif.id} className={`p-3 border-b border-slate-50 text-sm ${!notif.is_read ? "bg-blue-50" : ""}`}>
+                        <p className={!notif.is_read ? "font-semibold" : ""}>{notif.message}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">{new Date(notif.created_at).toLocaleString()}</p>
                       </div>
                     ))
                   )}
@@ -212,179 +188,127 @@ export default function CustomerDashboard() {
             )}
           </div>
 
-          <div className="h-6 w-px bg-slate-200"></div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
-              <User size={18} />
-            </div>
-          </div>
           <button
             onClick={handleLogout}
-            className="ml-2 text-red-500 hover:bg-red-50 p-2 rounded-lg"
+            className="bg-red-600 px-4 py-2 rounded text-sm font-medium hover:bg-red-500 transition"
           >
-            <LogOut size={20} />
+            Logout
           </button>
         </div>
       </header>
 
-      <main className="p-8 max-w-7xl mx-auto space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 h-fit">
-            <h3 className="font-bold text-slate-400 text-xs uppercase mb-4 tracking-wider">
-              Ringkasan Akun
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-4 bg-slate-50 rounded-lg">
-                <span className="text-slate-600 text-sm font-medium">
-                  Total Booking
-                </span>
-                <span className="font-bold text-xl text-slate-900">
-                  {bookings.length}
-                </span>
+      <main className="p-8 max-w-7xl mx-auto space-y-6">
+        
+        {/* JUDUL HALAMAN */}
+        <h2 className="text-2xl font-bold text-slate-900">Dashboard Customer</h2>
+
+        {/* GRID UTAMA (KIRI: STATS, KANAN: FORM) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* KARTU STATISTIK */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 h-fit">
+            <h3 className="font-bold text-lg mb-4 text-slate-900">Informasi Pengiriman</h3>
+            <div className="space-y-2 text-sm font-medium text-slate-700">
+              <div className="flex justify-between">
+                <span>Total Booking:</span>
+                <span className="font-bold">{bookings.length}</span>
               </div>
-              <div className="flex justify-between items-center p-4 bg-blue-50/50 rounded-lg">
-                <span className="text-blue-800 text-sm font-medium">Aktif</span>
-                <span className="font-bold text-xl text-blue-700">
-                  {
-                    bookings.filter(
-                      (b) => b.status !== "Selesai" && b.status !== "Ditolak",
-                    ).length
-                  }
-                </span>
+              <div className="flex justify-between">
+                <span>Pengiriman Aktif:</span>
+                <span className="font-bold">{bookings.filter((b) => b.status !== "Selesai" && b.status !== "Ditolak").length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Selesai:</span>
+                <span className="font-bold">{bookings.filter((b) => b.status === "Selesai").length}</span>
               </div>
             </div>
           </div>
 
-          <div className="lg:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-slate-900">
-              <Package className="text-blue-600" size={20} /> Booking Pengiriman
-              Baru
-            </h3>
-            <form
-              onSubmit={handleInputData}
-              className="grid grid-cols-1 md:grid-cols-2 gap-5"
-            >
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-400">
-                  Nama Barang
-                </label>
+          {/* KARTU FORM INPUT */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+            <h3 className="font-bold text-lg mb-4 text-slate-900">Booking Pengiriman LCL</h3>
+            <form onSubmit={handleInputData} className="space-y-4">
+              
+              {/* Row 1 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
+                  placeholder="Nama Barang"
                   value={form.namaBarang}
-                  onChange={(e) =>
-                    setForm({ ...form, namaBarang: e.target.value })
-                  }
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Contoh: Mesin Kopi"
+                  onChange={(e) => setForm({ ...form, namaBarang: e.target.value })}
+                  className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-800"
+                />
+                <input
+                  type="text"
+                  placeholder="Negara Tujuan"
+                  value={form.negaraTujuan}
+                  onChange={(e) => setForm({ ...form, negaraTujuan: e.target.value })}
+                  className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-800"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-400">
-                  Negara Tujuan
-                </label>
-                <div className="relative">
-                  <MapPin
-                    className="absolute right-3 top-2.5 text-slate-300"
-                    size={16}
-                  />
-                  <input
-                    type="text"
-                    value={form.negaraTujuan}
-                    onChange={(e) =>
-                      setForm({ ...form, negaraTujuan: e.target.value })
-                    }
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    placeholder="Contoh: Japan"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-400">
-                  Berat (Cbm)
-                </label>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="number"
+                  placeholder="Berat (Kg)"
                   value={form.berat}
                   onChange={(e) => setForm({ ...form, berat: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="0"
+                  className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-800"
                 />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-400">
-                  Rencana Kirim
-                </label>
                 <input
                   type="date"
                   value={form.tanggal}
-                  onChange={(e) =>
-                    setForm({ ...form, tanggal: e.target.value })
-                  }
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-600"
+                  onChange={(e) => setForm({ ...form, tanggal: e.target.value })}
+                  className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-800 text-slate-600"
                 />
               </div>
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-xs font-bold uppercase text-slate-400">
-                  Metode Pembayaran
-                </label>
+
+              {/* Row 3: Select */}
+              <div>
                 <select
                   value={form.pembayaran}
-                  onChange={(e) =>
-                    setForm({ ...form, pembayaran: e.target.value })
-                  }
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  onChange={(e) => setForm({ ...form, pembayaran: e.target.value })}
+                  className="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-800 bg-white"
                 >
-                  <option value="">Pilih Metode</option>
+                  <option value="">Pilih Metode Pembayaran</option>
                   <option value="Transfer">Transfer Bank</option>
                   <option value="Virtual Account">Virtual Account</option>
                   <option value="Kredit">Kartu Kredit / Debit</option>
                 </select>
               </div>
+
+              {/* Button */}
               <button
                 disabled={loading}
-                className="md:col-span-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all shadow-md shadow-blue-100 mt-2 disabled:opacity-70"
+                className="w-full bg-[#1e3a68] hover:bg-[#162d50] text-white font-bold py-2.5 rounded transition-colors mt-2 text-sm"
               >
-                {loading ? "Memproses..." : "Simpan Booking"}
+                {loading ? "Menyimpan..." : "Simpan Booking"}
               </button>
             </form>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-            <h3 className="font-bold text-lg text-slate-900">
-              Riwayat Pengiriman
-            </h3>
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-2.5 text-slate-300"
-                size={16}
-              />
-              <input
-                type="text"
-                placeholder="Cari ID Resi..."
-                className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-              />
-            </div>
+        {/* TABEL TRACKING */}
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+             <h3 className="font-bold text-lg text-slate-900">Tracking Pengiriman</h3>
           </div>
+          
           <table className="w-full text-left">
-            <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500">
+            <thead className="bg-gray-100 text-slate-700 text-sm font-bold border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4">No Booking</th>
-                <th className="px-6 py-4">Barang</th>
-                <th className="px-6 py-4">Tujuan</th>
-                <th className="px-6 py-4">Tanggal Input</th>
-                <th className="px-6 py-4 text-center">Status</th>
+                <th className="px-6 py-3">No Booking</th>
+                <th className="px-6 py-3">Barang</th>
+                <th className="px-6 py-3">Tujuan</th>
+                <th className="px-6 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-gray-100 text-sm">
               {bookings.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="px-6 py-8 text-center text-slate-400"
-                  >
-                    Belum ada data.
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                    Belum ada data pengiriman.
                   </td>
                 </tr>
               ) : (
@@ -392,32 +316,20 @@ export default function CustomerDashboard() {
                   <tr
                     key={item.id}
                     onClick={() => openModal(item)}
-                    className="hover:bg-slate-50 cursor-pointer transition-colors group"
+                    className="hover:bg-blue-50 cursor-pointer transition-colors"
                   >
-                    <td className="px-6 py-4 font-mono font-bold text-blue-600 group-hover:text-blue-700">
+                    <td className="px-6 py-3 text-slate-600">
                       LCL{String(item.id).padStart(3, "0")}
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-700">
-                      {item.barang}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {item.tujuan}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
-                      {item.tanggal}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                          item.status === "Proses Pengiriman"
-                            ? "bg-blue-50 text-blue-600 border-blue-200"
-                            : item.status === "Menunggu Verifikasi"
-                              ? "bg-yellow-50 text-yellow-600 border-yellow-200"
-                              : item.status === "Selesai"
-                                ? "bg-green-50 text-green-600 border-green-200"
-                                : "bg-red-50 text-red-600 border-red-200"
-                        }`}
-                      >
+                    <td className="px-6 py-3 text-slate-800">{item.barang}</td>
+                    <td className="px-6 py-3 text-slate-800">{item.tujuan}</td>
+                    <td className="px-6 py-3">
+                      <span className={`
+                        ${item.status === 'Proses Pengiriman' ? 'text-blue-600' : 
+                          item.status === 'Selesai' ? 'text-green-600' :
+                          item.status === 'Ditolak' ? 'text-red-600' :
+                          'text-yellow-600'} font-medium
+                      `}>
                         {item.status}
                       </span>
                     </td>
@@ -429,77 +341,43 @@ export default function CustomerDashboard() {
         </div>
       </main>
 
+      {/* MODAL DETAIL (POPUP) - Tidak berubah, hanya style sedikit menyesuaikan */}
       {isModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-all">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-blue-600 p-5 text-white flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all">
+          <div className="bg-white w-full max-w-lg rounded-lg shadow-2xl overflow-hidden">
+            <div className="bg-[#1e3a68] p-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-bold">Detail Pengiriman</h3>
-                <p className="text-blue-100 text-xs">
-                  ID Resi: LCL{String(selectedItem.id).padStart(3, "0")}
-                </p>
+                <p className="text-blue-100 text-xs">ID: LCL{String(selectedItem.id).padStart(3, "0")}</p>
               </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition"
-              >
+              <button onClick={() => setIsModalOpen(false)} className="bg-white/10 p-1.5 rounded-full hover:bg-white/20 transition">
                 <X size={18} />
               </button>
             </div>
-            <div className="p-6 space-y-6">
-              <div className="flex justify-between items-center px-4">
-                <div className="flex flex-col items-center gap-2">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center border ${true ? "bg-blue-600 border-blue-600 text-white" : ""}`}
-                  >
-                    <Clock size={14} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase text-blue-600">
-                    Pending
-                  </span>
+            <div className="p-6">
+              {/* Timeline Graphic */}
+              <div className="flex justify-between items-center px-4 mb-6">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><Clock size={16}/></div>
+                  <span className="text-[10px] font-bold">PENDING</span>
                 </div>
-                <div className="h-0.5 flex-1 mx-2 bg-slate-200"></div>
-                <div className="flex flex-col items-center gap-2">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center border ${selectedItem.status !== "Menunggu Verifikasi" ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-300"}`}
-                  >
-                    <Ship size={14} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">
-                    Kirim
-                  </span>
+                <div className="h-0.5 flex-1 bg-gray-200 mx-2"></div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedItem.status !== 'Menunggu Verifikasi' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}><Ship size={16}/></div>
+                  <span className="text-[10px] font-bold">KIRIM</span>
                 </div>
-                <div className="h-0.5 flex-1 mx-2 bg-slate-200"></div>
-                <div className="flex flex-col items-center gap-2">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center border ${selectedItem.status === "Selesai" ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-300"}`}
-                  >
-                    <CheckCircle2 size={14} />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">
-                    Selesai
-                  </span>
+                <div className="h-0.5 flex-1 bg-gray-200 mx-2"></div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedItem.status === 'Selesai' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}><CheckCircle2 size={16}/></div>
+                  <span className="text-[10px] font-bold">SELESAI</span>
                 </div>
               </div>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-sm">
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-500">Barang</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedItem.barang}
-                  </span>
-                </div>
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-500">Tujuan</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedItem.negaraTujuan || selectedItem.tujuan}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Berat</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedItem.berat} Kg
-                  </span>
-                </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Barang</span><span className="font-bold">{selectedItem.barang}</span></div>
+                <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Tujuan</span><span className="font-bold">{selectedItem.negaraTujuan || selectedItem.tujuan}</span></div>
+                <div className="flex justify-between border-b pb-2"><span className="text-gray-500">Berat</span><span className="font-bold">{selectedItem.berat} Kg</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Status</span><span className="font-bold text-[#1e3a68]">{selectedItem.status}</span></div>
               </div>
             </div>
           </div>
