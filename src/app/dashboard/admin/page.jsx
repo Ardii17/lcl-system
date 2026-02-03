@@ -24,35 +24,29 @@ export default function AdminDashboard() {
   const [editingId, setEditingId] = useState(null);
   const [tempBerat, setTempBerat] = useState("");
   const [showNotif, setShowNotif] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
-  // NOTIFIKASI DUMMY ADMIN
-  const waitingCount = bookings.filter(
-    (b) => b.status === "Menunggu Verifikasi",
-  ).length;
-  const notifications = [
-    {
-      id: 1,
-      text: `${waitingCount} Booking baru menunggu verifikasi`,
-      time: "Baru saja",
-      unread: waitingCount > 0,
-    },
-    {
-      id: 2,
-      text: "Laporan bulanan telah di-generate otomatis",
-      time: "1 hari lalu",
-      unread: false,
-    },
-  ];
-
+  // --- 1. FETCH DATA ---
   const fetchBookings = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("bookings")
       .select("*")
       .order("id", { ascending: false });
-    if (!error) setBookings(data);
+    if (data) setBookings(data);
   };
+
+  const fetchNotifications = async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .is("user_id", null)
+      .order("created_at", { ascending: false });
+    if (data) setNotifications(data);
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchNotifications();
   }, []);
 
   const handleLogout = async () => {
@@ -60,7 +54,7 @@ export default function AdminDashboard() {
     router.push("/login");
   };
 
-  // LOGIKA UTAMA ADMIN
+  // --- 2. LOGIKA ADMIN ---
   const filteredBookings = bookings.filter(
     (item) =>
       item.barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -68,10 +62,25 @@ export default function AdminDashboard() {
       String(item.id).includes(searchTerm),
   );
 
-  const updateStatus = async (id, newStatus) => {
+  const updateStatus = async (id, newStatus, customerId, barangName) => {
     if (newStatus === "Ditolak" && !confirm("Tolak booking ini?")) return;
-    await supabase.from("bookings").update({ status: newStatus }).eq("id", id);
-    fetchBookings();
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: newStatus })
+      .eq("id", id);
+    if (!error) {
+      if (customerId) {
+        await supabase.from("notifications").insert([
+          {
+            message: `Booking "${barangName}" Anda telah diupdate menjadi: ${newStatus}`,
+            user_id: customerId,
+            is_read: false,
+          },
+        ]);
+      }
+      fetchBookings();
+    }
   };
 
   const saveBerat = async (id) => {
@@ -80,7 +89,18 @@ export default function AdminDashboard() {
     fetchBookings();
   };
 
-  // STATISTIK
+  const markAsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+    if (unreadIds.length > 0) {
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .in("id", unreadIds);
+      fetchNotifications();
+    }
+  };
+
+  // --- STATS & LAPORAN ---
   const stats = {
     totalBooking: bookings.length,
     pengirimanAktif: bookings.filter((b) => b.status === "Proses Pengiriman")
@@ -88,7 +108,6 @@ export default function AdminDashboard() {
     selesai: bookings.filter((b) => b.status === "Selesai").length,
   };
 
-  // --- BAGIAN YANG KEMARIN HILANG: GROUPING LAPORAN ---
   const laporanGrouped = Object.values(
     bookings.reduce((acc, curr) => {
       const date = curr.tanggal;
@@ -99,9 +118,11 @@ export default function AdminDashboard() {
     }, {}),
   );
 
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      {/* --- NAVBAR SERAGAM --- */}
+      {/* NAVBAR */}
       <header className="bg-white px-8 py-4 flex justify-between items-center shadow-sm border-b border-slate-200 sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg text-white">
@@ -119,41 +140,53 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-4">
           <div className="relative">
             <button
-              onClick={() => setShowNotif(!showNotif)}
+              onClick={() => {
+                setShowNotif(!showNotif);
+                if (!showNotif) markAsRead();
+              }}
               className="p-2 rounded-full hover:bg-slate-100 relative text-slate-600"
             >
               <Bell size={20} />
-              {waitingCount > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
               )}
             </button>
             {showNotif && (
               <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-30 animate-in fade-in slide-in-from-top-2">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50">
+                <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                   <h3 className="font-bold text-sm">Notifikasi Admin</h3>
+                  <span className="text-xs text-slate-400">
+                    {unreadCount} baru
+                  </span>
                 </div>
-                {notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className="p-4 border-b border-slate-50 hover:bg-slate-50"
-                  >
-                    <p className={`text-sm ${notif.unread ? "font-bold" : ""}`}>
-                      {notif.text}
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="p-4 text-xs text-center text-slate-400">
+                      Belum ada notif.
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">{notif.time}</p>
-                  </div>
-                ))}
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`p-4 border-b border-slate-50 hover:bg-slate-50 ${!notif.is_read ? "bg-blue-50/20" : ""}`}
+                      >
+                        <p
+                          className={`text-sm ${!notif.is_read ? "font-bold" : ""}`}
+                        >
+                          {notif.message}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {new Date(notif.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
           <div className="h-6 w-px bg-slate-200"></div>
           <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-700">Administrator</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">
-                Super User
-              </p>
-            </div>
             <div className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white">
               <User size={18} />
             </div>
@@ -197,13 +230,12 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* VERIFIKASI */}
+          {/* VERIFIKASI (Tabel Scrollable) */}
           <div className="lg:col-span-2 bg-white p-8 rounded-xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-lg text-slate-900">
                 Verifikasi & Manajemen
               </h3>
-              {/* SEARCH BAR INTERAKTIF */}
               <div className="relative">
                 <Search
                   className="absolute left-2 top-2 text-slate-300"
@@ -219,15 +251,21 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* --- MODIFIKASI DISINI: Menambahkan max-height dan overflow-y --- */}
+            <div className="overflow-x-auto max-h-[400px] overflow-y-auto relative border border-slate-100 rounded-lg">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+                {/* --- MODIFIKASI DISINI: Menambahkan sticky header --- */}
+                <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
                   <tr>
-                    <th className="px-4 py-3">No Booking</th>
-                    <th className="px-4 py-3">Barang</th>
-                    <th className="px-4 py-3 text-center">Berat (Kg)</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-center min-w-[120px]">
+                    <th className="px-4 py-3 bg-slate-50">No Booking</th>
+                    <th className="px-4 py-3 bg-slate-50">Barang</th>
+                    <th className="px-4 py-3 text-center bg-slate-50">
+                      Berat (Kg)
+                    </th>
+                    <th className="px-4 py-3 text-center bg-slate-50">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-center min-w-[120px] bg-slate-50">
                       Aksi
                     </th>
                   </tr>
@@ -313,7 +351,12 @@ export default function AdminDashboard() {
                               <>
                                 <button
                                   onClick={() =>
-                                    updateStatus(item.id, "Proses Pengiriman")
+                                    updateStatus(
+                                      item.id,
+                                      "Proses Pengiriman",
+                                      item.user_id,
+                                      item.barang,
+                                    )
                                   }
                                   className="p-1.5 bg-green-500 text-white rounded hover:bg-green-600"
                                 >
@@ -321,7 +364,12 @@ export default function AdminDashboard() {
                                 </button>
                                 <button
                                   onClick={() =>
-                                    updateStatus(item.id, "Ditolak")
+                                    updateStatus(
+                                      item.id,
+                                      "Ditolak",
+                                      item.user_id,
+                                      item.barang,
+                                    )
                                   }
                                   className="p-1.5 bg-red-500 text-white rounded hover:bg-red-600"
                                 >
@@ -332,7 +380,14 @@ export default function AdminDashboard() {
                           {!editingId &&
                             item.status === "Proses Pengiriman" && (
                               <button
-                                onClick={() => updateStatus(item.id, "Selesai")}
+                                onClick={() =>
+                                  updateStatus(
+                                    item.id,
+                                    "Selesai",
+                                    item.user_id,
+                                    item.barang,
+                                  )
+                                }
                                 className="px-2 py-1 bg-indigo-600 text-white text-[10px] rounded hover:bg-indigo-700"
                               >
                                 Selesai
@@ -348,7 +403,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* --- ROW 2: LAPORAN PENGIRIMAN (SUDAH KEMBALI) --- */}
+        {/* ROW 2: LAPORAN PENGIRIMAN */}
         <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
           <h3 className="font-bold text-lg mb-6 text-slate-900 border-b border-gray-100 pb-2">
             Laporan Pengiriman

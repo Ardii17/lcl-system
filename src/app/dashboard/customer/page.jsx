@@ -21,10 +21,11 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(false);
   const [bookings, setBookings] = useState([]);
 
-  // STATE INTERAKSI
+  // STATE INTERAKSI & NOTIFIKASI
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showNotif, setShowNotif] = useState(false);
+  const [notifications, setNotifications] = useState([]); // Data Real Notifikasi
 
   const [form, setForm] = useState({
     namaBarang: "",
@@ -34,47 +35,54 @@ export default function CustomerDashboard() {
     pembayaran: "",
   });
 
-  // --- 1. REVISI FETCH DATA (Hanya ambil data milik user sendiri) ---
+  // 1. FETCH DATA BOOKING
   const fetchBookings = async () => {
-    // Ambil data user yang sedang login
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
     if (user) {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("bookings")
         .select("*")
-        .eq("user_id", user.id) // <--- FILTER PENTING: Hanya user_id yang cocok
+        .eq("user_id", user.id)
         .order("id", { ascending: false });
+      if (data) setBookings(data);
+    }
+  };
 
-      if (!error) setBookings(data);
+  // 2. FETCH DATA NOTIFIKASI
+  const fetchNotifications = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id) // Ambil notifikasi milik user ini
+        .order("created_at", { ascending: false });
+      if (data) setNotifications(data);
     }
   };
 
   useEffect(() => {
     fetchBookings();
+    fetchNotifications();
   }, []);
 
-  // --- 2. REVISI INPUT DATA (Sertakan user_id saat simpan) ---
+  // 3. FUNGSI INPUT DATA (AUTO NOTIF KE ADMIN)
   const handleInputData = async (e) => {
     e.preventDefault();
     if (!form.namaBarang || !form.negaraTujuan)
       return alert("Mohon lengkapi data!");
-
     setLoading(true);
 
-    // Ambil user ID user yang sedang login
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      alert("Sesi habis, silakan login ulang");
-      return router.push("/login");
-    }
-
-    const { error } = await supabase.from("bookings").insert([
+    // A. Simpan Booking
+    const { error: bookingError } = await supabase.from("bookings").insert([
       {
         barang: form.namaBarang,
         tujuan: form.negaraTujuan,
@@ -82,12 +90,20 @@ export default function CustomerDashboard() {
         tanggal: form.tanggal || new Date().toISOString().split("T")[0],
         pembayaran: form.pembayaran,
         status: "Menunggu Verifikasi",
-        user_id: user.id, // <--- PENTING: Menandai ini milik siapa
+        user_id: user.id,
       },
     ]);
 
-    setLoading(false);
-    if (!error) {
+    if (!bookingError) {
+      // B. Kirim Notifikasi ke Admin (user_id: null artinya untuk admin)
+      await supabase.from("notifications").insert([
+        {
+          message: `Booking Baru: ${form.namaBarang} tujuan ${form.negaraTujuan} perlu verifikasi.`,
+          user_id: null, // NULL = ADMIN
+          is_read: false,
+        },
+      ]);
+
       alert("Booking berhasil!");
       setForm({
         namaBarang: "",
@@ -98,7 +114,20 @@ export default function CustomerDashboard() {
       });
       fetchBookings();
     } else {
-      alert(error.message);
+      alert(bookingError.message);
+    }
+    setLoading(false);
+  };
+
+  // 4. FUNGSI TANDAI NOTIFIKASI DIBACA
+  const markAsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+    if (unreadIds.length > 0) {
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .in("id", unreadIds);
+      fetchNotifications(); // Refresh tampilan
     }
   };
 
@@ -111,20 +140,12 @@ export default function CustomerDashboard() {
     setIsModalOpen(true);
   };
 
-  // ... (SISA KODE DI BAWAH SAMA PERSIS SEPERTI SEBELUMNYA, TIDAK PERLU DIUBAH) ...
-  // Langsung copy paste saja return JSX dari jawaban sebelumnya,
-  // karena perubahannya hanya di logika fetchBookings dan handleInputData di atas.
+  // Hitung jumlah belum dibaca
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
-      {/* ... Header & Konten lainnya ... */}
-      {/* (Gunakan JSX dari jawaban sebelumnya, fiturnya sudah benar) */}
-
-      {/* Agar tidak terlalu panjang, saya persingkat di sini. 
-           Pastikan Anda menggunakan JSX lengkap dari jawaban sebelumnya 
-           tetapi menggunakan fetchBookings dan handleInputData yang BARU di atas. 
-       */}
-
+      {/* NAVBAR */}
       <header className="bg-white px-8 py-4 flex justify-between items-center shadow-sm border-b border-slate-200 sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg text-white">
@@ -141,44 +162,65 @@ export default function CustomerDashboard() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* NOTIFIKASI REAL-TIME */}
           <div className="relative">
             <button
-              onClick={() => setShowNotif(!showNotif)}
+              onClick={() => {
+                setShowNotif(!showNotif);
+                if (!showNotif) markAsRead();
+              }}
               className="p-2 rounded-full hover:bg-slate-100 relative text-slate-600 transition-colors"
             >
               <Bell size={20} />
-              <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+              )}
             </button>
+
             {showNotif && (
               <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2">
                 <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
                   <h3 className="font-bold text-sm">Notifikasi</h3>
+                  <span className="text-xs text-slate-400">
+                    {unreadCount} baru
+                  </span>
                 </div>
-                <div className="p-4 text-sm text-slate-500 text-center">
-                  Belum ada notifikasi baru
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="p-4 text-xs text-center text-slate-400">
+                      Tidak ada notifikasi.
+                    </p>
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`p-4 border-b border-slate-50 hover:bg-blue-50/30 ${!notif.is_read ? "bg-blue-50/20" : ""}`}
+                      >
+                        <p
+                          className={`text-sm ${!notif.is_read ? "font-semibold text-slate-800" : "text-slate-600"}`}
+                        >
+                          {notif.message}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {new Date(notif.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
           </div>
 
           <div className="h-6 w-px bg-slate-200"></div>
-
           <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-700">Halo, Customer</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">
-                Basic Member
-              </p>
-            </div>
             <div className="w-9 h-9 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
               <User size={18} />
             </div>
           </div>
-
           <button
             onClick={handleLogout}
-            className="ml-2 text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
-            title="Logout"
+            className="ml-2 text-red-500 hover:bg-red-50 p-2 rounded-lg"
           >
             <LogOut size={20} />
           </button>
