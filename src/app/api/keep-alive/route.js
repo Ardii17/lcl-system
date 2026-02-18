@@ -13,7 +13,7 @@ export async function GET() {
 
   // Query ringan — cukup cek 1 baris tabel kecil
   const { error } = await supabase
-    .from("nama_tabel_kecil")
+    .from("keep_alive")
     .select("id")
     .limit(1)
 
